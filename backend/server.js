@@ -10,7 +10,7 @@ app.use(express.json());
 // Create Order endpoint
 app.post("/api/create-order", async (req, res) => {
     try {
-        const { amount, customer_email, customer_phone } = req.body;
+        const { amount, customer_email, customer_phone    } = req.body;
 
         const orderId = "order_" + Date.now();
 
