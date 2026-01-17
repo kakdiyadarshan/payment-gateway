@@ -12,9 +12,6 @@ app.use(express.json());
 const CASHFREE_API_VERSION = "2023-08-01";
 const CASHFREE_BASE_URL = "https://sandbox.cashfree.com";
 
-// Helper function to delay execution
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
 // Create Order endpoint
 app.post("/api/create-order", async (req, res) => {
     try {
@@ -76,7 +73,7 @@ app.post("/api/process-payment", async (req, res) => {
     try {
         const { order_id, payment_method, payment_data, payment_session_id } = req.body;
 
-        console.log("Processing payment for order:", order_id);
+        console.log("________________________________", payment_data);
 
         if (!order_id || !payment_method || !payment_session_id) {
             return res.status(400).json({
@@ -174,6 +171,7 @@ app.post("/api/process-payment", async (req, res) => {
         console.log("Full Payment response:", JSON.stringify(response.data, null, 2));
 
         // CRITICAL FIX: Extract payment ID from ALL possible locations in Cashfree response
+        // For card payments requiring authentication, Cashfree returns cf_payment_id at root level
         let cf_payment_id = response.data.cf_payment_id ||
             response.data.data?.cf_payment_id ||
             response.data.payment_id ||
@@ -356,63 +354,10 @@ app.get("/api/order-payment/:order_id", async (req, res) => {
     }
 });
 
-// Helper function to verify OTP with retry logic
-const verifyOtpWithRetry = async (cfPaymentId, otp, maxRetries = 3) => {
-    let lastError = null;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            console.log(`OTP Verification Attempt ${attempt}/${maxRetries}`);
-
-            const response = await axios.post(
-                `${CASHFREE_BASE_URL}/pg/orders/pay/authenticate/${cfPaymentId}`,
-                {
-                    action: "SUBMIT_OTP",
-                    otp: otp
-                },
-                {
-                    headers: {
-                        "x-client-id": process.env.CASHFREE_APP_ID,
-                        "x-client-secret": process.env.CASHFREE_SECRET,
-                        "x-api-version": CASHFREE_API_VERSION,
-                        "Content-Type": "application/json"
-                    }
-                }
-            );
-
-            return { success: true, data: response.data };
-        } catch (error) {
-            lastError = error;
-            const errorCode = error.response?.data?.code;
-            const errorMessage = error.response?.data?.message;
-
-            console.log(`Attempt ${attempt} failed:`, errorCode, errorMessage);
-
-            // Only retry for specific errors that might be timing-related
-            const retryableErrors = ['payment_not_found', 'transaction_not_found', 'invalid_request_error'];
-            const isRetryable = retryableErrors.includes(errorCode) ||
-                errorMessage?.toLowerCase().includes('not found') ||
-                error.response?.status === 404;
-
-            if (isRetryable && attempt < maxRetries) {
-                // Wait before retry with exponential backoff
-                const waitTime = attempt * 1500; // 1.5s, 3s, 4.5s
-                console.log(`Waiting ${waitTime}ms before retry...`);
-                await delay(waitTime);
-            } else if (!isRetryable) {
-                // Non-retryable error, break immediately
-                break;
-            }
-        }
-    }
-
-    return { success: false, error: lastError };
-};
-
-// FIXED: Verify OTP endpoint - Submit OTP to Cashfree with retry logic
+// FIXED: Verify OTP endpoint - Submit OTP to Cashfree
 app.post("/api/verify-otp", async (req, res) => {
     try {
-        const { cf_payment_id, otp, order_id } = req.body;
+        const { cf_payment_id, otp } = req.body;
 
         // Validate inputs
         if (!cf_payment_id || !otp) {
@@ -423,61 +368,61 @@ app.post("/api/verify-otp", async (req, res) => {
         }
 
         console.log("=== OTP Verification Request ===");
-        console.log("cf_payment_id:", cf_payment_id);
-        console.log("order_id:", order_id);
-        console.log("OTP:", otp);
+        console.log("Received cf_payment_id:", cf_payment_id);
+        console.log("OTP Length:", otp.length);
+        console.log("Request URL:", `${CASHFREE_BASE_URL}/pg/orders/pay/authenticate/${cf_payment_id}`);
 
         // Validate payment ID format
         if (!cf_payment_id.startsWith('pay_')) {
-            console.warn("Warning: Payment ID doesn't start with 'pay_'", cf_payment_id);
+            console.warn("Warning: Payment ID doesn\'t start with \'pay_\'", cf_payment_id);
         }
 
-        // Add a small initial delay to give Cashfree time to fully register the payment
-        console.log("Waiting 1 second before OTP verification...");
-        await delay(1000);
+        console.log("=== OTP Verification Request ===");
+        console.log("cf_payment_id:", cf_payment_id);
+        console.log("OTP:", otp);
+        console.log("Request URL:", `${CASHFREE_BASE_URL}/pg/orders/pay/authenticate/${cf_payment_id}`);
 
-        // Try to verify OTP with retry logic
-        const result = await verifyOtpWithRetry(cf_payment_id, otp, 3);
+        const response = await axios.post(
+            `${CASHFREE_BASE_URL}/pg/orders/pay/authenticate/${cf_payment_id}`,
+            {
+                action: "SUBMIT_OTP",
+                otp: otp
+            },
+            {
+                headers: {
+                    "x-client-id": process.env.CASHFREE_APP_ID,
+                    "x-client-secret": process.env.CASHFREE_SECRET,
+                    "x-api-version": CASHFREE_API_VERSION,
+                    "Content-Type": "application/json"
+                }
+            }
+        );
 
-        if (result.success) {
-            console.log("=== OTP Verification Success ===");
-            console.log(JSON.stringify(result.data, null, 2));
+        console.log("=== OTP Verification Response ===");
+        console.log(JSON.stringify(response.data, null, 2));
 
-            const paymentData = result.data;
+        // Cashfree returns the payment object here
+        const paymentData = response.data;
 
-            return res.json({
-                success: true,
-                status: paymentData.payment_status,
-                message: paymentData.payment_message || "OTP verified successfully",
-                data: paymentData
-            });
-        } else {
-            // All retries failed
-            const error = result.error;
-            console.error('=== OTP Verification Failed After Retries ===');
-            console.error('Status:', error.response?.status);
-            console.error('Error Data:', JSON.stringify(error.response?.data, null, 2));
-
-            const errorDetail = error.response?.data;
-
-            return res.status(400).json({
-                success: false,
-                message: errorDetail?.message || "OTP verification failed",
-                code: errorDetail?.code,
-                type: errorDetail?.type,
-                retried: true
-            });
-        }
+        return res.json({
+            success: true,
+            status: paymentData.payment_status,
+            message: paymentData.payment_message || "OTP verified successfully",
+            data: paymentData
+        });
 
     } catch (error) {
-        console.error('=== OTP Verification Unexpected Error ===');
-        console.error('Error:', error.message);
+        console.error('=== OTP Verification Error ===');
+        console.error('Status:', error.response?.status);
+        console.error('Error Data:', JSON.stringify(error.response?.data, null, 2));
 
-        res.status(500).json({
+        const errorDetail = error.response?.data;
+
+        res.status(400).json({
             success: false,
-            message: error.message || "OTP verification failed",
-            code: "server_error",
-            type: "server_error"
+            message: errorDetail?.message || "OTP verification failed",
+            code: errorDetail?.code,
+            type: errorDetail?.type
         });
     }
 });
