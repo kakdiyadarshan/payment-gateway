@@ -592,6 +592,28 @@ const CustomCashfreeCheckout = () => {
                                                 </div>
                                             )}
 
+                                            {method.id === 'wallet' && (
+                                                <div>
+                                                    <label className="block text-sm font-medium mb-2">Select Your Wallet</label>
+                                                    <div className="space-y-2">
+                                                        {wallets.map((wallet) => (
+                                                            <button
+                                                                key={wallet.id}
+                                                                onClick={() => handleInputChange('walletProvider', wallet.id)}
+                                                                className={`w-full p-3 border rounded-lg flex items-center hover:border-indigo-500 ${
+                                                                    paymentData.walletProvider === wallet.id
+                                                                        ? 'border-indigo-600 bg-indigo-50'
+                                                                        : 'border-gray-300'
+                                                                }`}
+                                                            >
+                                                                <span className="text-2xl mr-3">{wallet.logo}</span>
+                                                                <span>{wallet.name}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <button
                                                 onClick={handlePaymentSubmit}
                                                 disabled={loading}
