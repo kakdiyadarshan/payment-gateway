@@ -59,10 +59,11 @@ const CustomCashfreeCheckout = () => {
     ];
 
     const wallets = [
-        { id: 'paytm', name: 'Paytm', logo: '📱' },
+        // { id: 'paytm', name: 'Paytm', logo: '📱' },
+        // { id: 'gpay', name: 'Google Pay', logo: '🔵' },
         { id: 'phonepe', name: 'PhonePe', logo: '💜' },
-        { id: 'gpay', name: 'Google Pay', logo: '🔵' },
         { id: 'amazon', name: 'Amazon Pay', logo: '🟠' },
+        { id: 'freecharge', name: 'Freecharge', logo: '⚡' },
     ];
 
     const handlePayNowClick = () => {
