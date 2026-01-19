@@ -228,7 +228,7 @@ const CustomCashfreeCheckout = () => {
                 setLoading(false);
 
                 // startPaymentStatusPolling(paymentResp.data.cf_payment_id || paymentResp.data.payment_reference);
-                // return;
+                return;
             }
 
             // if (paymentResp.data.requires_redirect) {
