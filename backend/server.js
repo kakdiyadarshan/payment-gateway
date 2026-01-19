@@ -204,7 +204,6 @@ app.post("/api/process-payment", async (req, res) => {
             channel: response.data.channel,
             payment_status: response.data.payment_status || 'PENDING',
             order_id: order_id,
-            // Store the entire response for debugging
             raw_response: response.data
         };
 
@@ -355,77 +354,77 @@ app.get("/api/order-payment/:order_id", async (req, res) => {
 });
 
 // FIXED: Verify OTP endpoint - Submit OTP to Cashfree
-app.post("/api/verify-otp", async (req, res) => {
-    try {
-        const { cf_payment_id, otp } = req.body;
+// app.post("/api/verify-otp", async (req, res) => {
+//     try {
+//         const { cf_payment_id, otp } = req.body;
 
-        // Validate inputs
-        if (!cf_payment_id || !otp) {
-            return res.status(400).json({
-                success: false,
-                message: "Missing cf_payment_id or OTP"
-            });
-        }
+//         // Validate inputs
+//         if (!cf_payment_id || !otp) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: "Missing cf_payment_id or OTP"
+//             });
+//         }
 
-        console.log("=== OTP Verification Request ===");
-        console.log("Received cf_payment_id:", cf_payment_id);
-        console.log("OTP Length:", otp.length);
-        console.log("Request URL:", `${CASHFREE_BASE_URL}/pg/orders/pay/authenticate/${cf_payment_id}`);
+//         console.log("=== OTP Verification Request ===");
+//         console.log("Received cf_payment_id:", cf_payment_id);
+//         console.log("OTP Length:", otp.length);
+//         console.log("Request URL:", `${CASHFREE_BASE_URL}/pg/orders/pay/authenticate/${cf_payment_id}`);
 
-        // Validate payment ID format
-        if (!cf_payment_id.startsWith('pay_')) {
-            console.warn("Warning: Payment ID doesn\'t start with \'pay_\'", cf_payment_id);
-        }
+//         // Validate payment ID format
+//         if (!cf_payment_id.startsWith('pay_')) {
+//             console.warn("Warning: Payment ID doesn\'t start with \'pay_\'", cf_payment_id);
+//         }
 
-        console.log("=== OTP Verification Request ===");
-        console.log("cf_payment_id:", cf_payment_id);
-        console.log("OTP:", otp);
-        console.log("Request URL:", `${CASHFREE_BASE_URL}/pg/orders/pay/authenticate/${cf_payment_id}`);
+//         console.log("=== OTP Verification Request ===");
+//         console.log("cf_payment_id:", cf_payment_id);
+//         console.log("OTP:", otp);
+//         console.log("Request URL:", `${CASHFREE_BASE_URL}/pg/orders/pay/authenticate/${cf_payment_id}`);
 
-        const response = await axios.post(
-            `${CASHFREE_BASE_URL}/pg/orders/pay/authenticate/${cf_payment_id}`,
-            {
-                action: "SUBMIT_OTP",
-                otp: otp
-            },
-            {
-                headers: {
-                    "x-client-id": process.env.CASHFREE_APP_ID,
-                    "x-client-secret": process.env.CASHFREE_SECRET,
-                    "x-api-version": CASHFREE_API_VERSION,
-                    "Content-Type": "application/json"
-                }
-            }
-        );
+//         const response = await axios.post(
+//             `${CASHFREE_BASE_URL}/pg/orders/pay/authenticate/${cf_payment_id}`,
+//             {
+//                 action: "SUBMIT_OTP",
+//                 otp: otp
+//             },
+//             {
+//                 headers: {
+//                     "x-client-id": process.env.CASHFREE_APP_ID,
+//                     "x-client-secret": process.env.CASHFREE_SECRET,
+//                     "x-api-version": CASHFREE_API_VERSION,
+//                     "Content-Type": "application/json"
+//                 }
+//             }
+//         );
 
-        console.log("=== OTP Verification Response ===");
-        console.log(JSON.stringify(response.data, null, 2));
+//         console.log("=== OTP Verification Response ===");
+//         console.log(JSON.stringify(response.data, null, 2));
 
-        // Cashfree returns the payment object here
-        const paymentData = response.data;
+//         // Cashfree returns the payment object here
+//         const paymentData = response.data;
 
-        return res.json({
-            success: true,
-            status: paymentData.payment_status,
-            message: paymentData.payment_message || "OTP verified successfully",
-            data: paymentData
-        });
+//         return res.json({
+//             success: true,
+//             status: paymentData.payment_status,
+//             message: paymentData.payment_message || "OTP verified successfully",
+//             data: paymentData
+//         });
 
-    } catch (error) {
-        console.error('=== OTP Verification Error ===');
-        console.error('Status:', error.response?.status);
-        console.error('Error Data:', JSON.stringify(error.response?.data, null, 2));
+//     } catch (error) {
+//         console.error('=== OTP Verification Error ===');
+//         console.error('Status:', error.response?.status);
+//         console.error('Error Data:', JSON.stringify(error.response?.data, null, 2));
 
-        const errorDetail = error.response?.data;
+//         const errorDetail = error.response?.data;
 
-        res.status(400).json({
-            success: false,
-            message: errorDetail?.message || "OTP verification failed",
-            code: errorDetail?.code,
-            type: errorDetail?.type
-        });
-    }
-});
+//         res.status(400).json({
+//             success: false,
+//             message: errorDetail?.message || "OTP verification failed",
+//             code: errorDetail?.code,
+//             type: errorDetail?.type
+//         });
+//     }
+// });
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

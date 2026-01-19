@@ -16,9 +16,9 @@ const CustomCashfreeCheckout = () => {
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
     const [orderData, setOrderData] = useState(null);
     const [paymentResponse, setPaymentResponse] = useState(null);
-    const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
     const [pollingInterval, setPollingInterval] = useState(null);
-    const [otpError, setOtpError] = useState('');
+    // const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
+    // const [otpError, setOtpError] = useState('');
 
     const [customerDetails, setCustomerDetails] = useState({
         customerName: '',
@@ -59,9 +59,10 @@ const CustomCashfreeCheckout = () => {
     ];
 
     const wallets = [
+        { id: 'paytm', name: 'Paytm', logo: '📱' },
         { id: 'phonepe', name: 'PhonePe', logo: '💜' },
         { id: 'gpay', name: 'Google Pay', logo: '🔵' },
-        { id: 'paytm', name: 'Paytm', logo: '💙' },
+        { id: 'amazon', name: 'Amazon Pay', logo: '🟠' },
     ];
 
     const handlePayNowClick = () => {
@@ -112,6 +113,7 @@ const CustomCashfreeCheckout = () => {
     };
 
     const startPaymentStatusPolling = (cfPaymentId) => {
+        setStep('processing');
         const interval = setInterval(async () => {
             try {
                 const statusResponse = await axios.get(
@@ -132,7 +134,7 @@ const CustomCashfreeCheckout = () => {
             } catch (error) {
                 console.error('Status polling error:', error);
             }
-        }, 3000);
+        }, 2000);
 
         setPollingInterval(interval);
 
@@ -142,7 +144,7 @@ const CustomCashfreeCheckout = () => {
                 setPollingInterval(null);
                 setStep('failed');
             }
-        }, 300000);
+        }, 30000);
     };
 
     const handlePaymentSubmit = async () => {
@@ -207,14 +209,36 @@ const CustomCashfreeCheckout = () => {
                 console.warn('⚠️ WARNING: No cf_payment_id in immediate response, will try to fetch from order');
             }
 
-            if (paymentResp.data.requires_redirect) {
-                setStep('otp-verification');
+            if (paymentResp.data.requires_redirect && paymentResp.data.redirect_url) {
+                console.log('Payment requires 3DS authentication');
+                console.log('Redirect URL:', paymentResp.data.redirect_url);
+
+                // Open 3DS authentication in popup
+                const authWindow = window.location.href = paymentResp.data.redirect_url;
+
+                if (!authWindow) {
+                    alert('Please allow popups for this site to complete payment authentication');
+                    setStep('checkout');
+                    setLoading(false);
+                    return;
+                }
+
+                // Switch to 3DS pending state
+                setStep('3ds-pending');
                 setLoading(false);
-                return;
+
+                // startPaymentStatusPolling(paymentResp.data.cf_payment_id || paymentResp.data.payment_reference);
+                // return;
             }
 
+            // if (paymentResp.data.requires_redirect) {
+            //     setStep('otp-verification');
+            //     setLoading(false);
+            //     return;
+            // }
+
             if (paymentResp.data.requires_polling) {
-                setStep('upi-pending');
+                console.log('Payment requires polling');
                 setLoading(false);
                 startPaymentStatusPolling(paymentResp.data.cf_payment_id);
                 return;
@@ -233,108 +257,108 @@ const CustomCashfreeCheckout = () => {
         }
     };
 
-    const handleOtpChange = (index, value) => {
-        if (value.length > 1) {
-            value = value.charAt(0);
-        }
+    // const handleOtpChange = (index, value) => {
+    //     if (value.length > 1) {
+    //         value = value.charAt(0);
+    //     }
 
-        const newOtpValues = [...otpValues];
-        newOtpValues[index] = value;
-        setOtpValues(newOtpValues);
+    //     const newOtpValues = [...otpValues];
+    //     newOtpValues[index] = value;
+    //     setOtpValues(newOtpValues);
 
-        if (value && index < 5) {
-            const nextInput = document.getElementById(`otp-${index + 1}`);
-            if (nextInput) nextInput.focus();
-        }
-    };
+    //     if (value && index < 5) {
+    //         const nextInput = document.getElementById(`otp-${index + 1}`);
+    //         if (nextInput) nextInput.focus();
+    //     }
+    // };
 
-    // Helper function to fetch payment ID from order if not available
-    const fetchPaymentIdFromOrder = async (orderId) => {
-        try {
-            console.log('Fetching payment ID from order:', orderId);
-            const response = await axios.get(`http://localhost:5000/api/order-payment/${orderId}`);
-            console.log('Order payment response:', response.data);
-            return response.data.cf_payment_id;
-        } catch (error) {
-            console.error('Failed to fetch payment ID from order:', error);
-            return null;
-        }
-    };
+    // // Helper function to fetch payment ID from order if not available
+    // const fetchPaymentIdFromOrder = async (orderId) => {
+    //     try {
+    //         console.log('Fetching payment ID from order:', orderId);
+    //         const response = await axios.get(`http://localhost:5000/api/order-payment/${orderId}`);
+    //         console.log('Order payment response:', response.data);
+    //         return response.data.cf_payment_id;
+    //     } catch (error) {
+    //         console.error('Failed to fetch payment ID from order:', error);
+    //         return null;
+    //     }
+    // };
 
-    const handleOtpVerification = async () => {
-        const otp = otpValues.join('');
+    // const handleOtpVerification = async () => {
+    //     const otp = otpValues.join('');
 
-        if (otp.length !== 6) {
-            setOtpError('Please enter all 6 digits');
-            return;
-        }
+    //     if (otp.length !== 6) {
+    //         setOtpError('Please enter all 6 digits');
+    //         return;
+    //     }
 
-        setLoading(true);
-        setOtpError('');
+    //     setLoading(true);
+    //     setOtpError('');
 
-        // Get cf_payment_id - try from paymentResponse first, then fetch from order as fallback
-        let cfPaymentId = paymentResponse?.cf_payment_id;
+    //     // Get cf_payment_id - try from paymentResponse first, then fetch from order as fallback
+    //     let cfPaymentId = paymentResponse?.cf_payment_id;
 
-        if (!cfPaymentId && orderData?.order_id) {
-            console.log('cf_payment_id not in paymentResponse, fetching from order...');
-            cfPaymentId = await fetchPaymentIdFromOrder(orderData.order_id);
+    //     if (!cfPaymentId && orderData?.order_id) {
+    //         console.log('cf_payment_id not in paymentResponse, fetching from order...');
+    //         cfPaymentId = await fetchPaymentIdFromOrder(orderData.order_id);
 
-            // Update paymentResponse with fetched ID for future use
-            if (cfPaymentId) {
-                setPaymentResponse(prev => ({ ...prev, cf_payment_id: cfPaymentId }));
-            }
-        }
+    //         // Update paymentResponse with fetched ID for future use
+    //         if (cfPaymentId) {
+    //             setPaymentResponse(prev => ({ ...prev, cf_payment_id: cfPaymentId }));
+    //         }
+    //     }
 
-        if (!cfPaymentId) {
-            console.error('⚠️ ERROR: Could not obtain cf_payment_id!');
-            console.log('Payment Response:', paymentResponse);
-            console.log('Order Data:', orderData);
-            setOtpError('Payment session expired. Please try again.');
-            setLoading(false);
-            return;
-        }
+    //     if (!cfPaymentId) {
+    //         console.error('⚠️ ERROR: Could not obtain cf_payment_id!');
+    //         console.log('Payment Response:', paymentResponse);
+    //         console.log('Order Data:', orderData);
+    //         setOtpError('Payment session expired. Please try again.');
+    //         setLoading(false);
+    //         return;
+    //     }
 
-        try {
-            console.log('=== SUBMITTING OTP ===');
-            console.log('cf_payment_id:', cfPaymentId);
-            console.log('OTP:', otp);
+    //     try {
+    //         console.log('=== SUBMITTING OTP ===');
+    //         console.log('cf_payment_id:', cfPaymentId);
+    //         console.log('OTP:', otp);
 
-            const response = await axios.post('http://localhost:5000/api/verify-otp', {
-                cf_payment_id: cfPaymentId,
-                otp: otp,
-                order_id: orderData?.order_id
-            });
+    //         const response = await axios.post('http://localhost:5000/api/verify-otp', {
+    //             cf_payment_id: cfPaymentId,
+    //             otp: otp,
+    //             order_id: orderData?.order_id
+    //         });
 
-            console.log('=== OTP VERIFICATION RESPONSE ===');
-            console.log(response.data);
+    //         console.log('=== OTP VERIFICATION RESPONSE ===');
+    //         console.log(response.data);
 
-            const { status, data } = response.data;
+    //         const { status, data } = response.data;
 
-            if (status === 'SUCCESS') {
-                setStep('success');
-            } else if (status === 'PENDING') {
-                setOtpError('Payment is pending. Please check your bank account.');
-            } else if (status === 'FAILED') {
-                setOtpError(data?.payment_message || 'Payment Failed');
-                setOtpValues(['', '', '', '', '', '']);
-            } else {
-                setOtpError('Processing... please do not refresh.');
-            }
-        } catch (error) {
-            console.error('=== OTP VERIFICATION ERROR ===');
-            console.error('Error:', error.response?.data);
-            setOtpError(error.response?.data?.message || 'Verification Error');
-            setOtpValues(['', '', '', '', '', '']);
-        } finally {
-            setLoading(false);
-        }
-    };
+    //         if (status === 'SUCCESS') {
+    //             setStep('success');
+    //         } else if (status === 'PENDING') {
+    //             setOtpError('Payment is pending. Please check your bank account.');
+    //         } else if (status === 'FAILED') {
+    //             setOtpError(data?.payment_message || 'Payment Failed');
+    //             setOtpValues(['', '', '', '', '', '']);
+    //         } else {
+    //             setOtpError('Processing... please do not refresh.');
+    //         }
+    //     } catch (error) {
+    //         console.error('=== OTP VERIFICATION ERROR ===');
+    //         console.error('Error:', error.response?.data);
+    //         setOtpError(error.response?.data?.message || 'Verification Error');
+    //         setOtpValues(['', '', '', '', '', '']);
+    //     } finally {
+    //         setLoading(false);
+    //     }
+    // };
 
-    const handleResendOtp = async () => {
-        setOtpValues(['', '', '', '', '', '']);
-        setOtpError('');
-        alert('OTP has been resent to your registered mobile number');
-    };
+    // const handleResendOtp = async () => {
+    //     setOtpValues(['', '', '', '', '', '']);
+    //     setOtpError('');
+    //     alert('OTP has been resent to your registered mobile number');
+    // };
 
     const handleInputChange = (field, value) => {
         if (field.startsWith('customer')) {
@@ -600,11 +624,10 @@ const CustomCashfreeCheckout = () => {
                                                             <button
                                                                 key={wallet.id}
                                                                 onClick={() => handleInputChange('walletProvider', wallet.id)}
-                                                                className={`w-full p-3 border rounded-lg flex items-center hover:border-indigo-500 ${
-                                                                    paymentData.walletProvider === wallet.id
-                                                                        ? 'border-indigo-600 bg-indigo-50'
-                                                                        : 'border-gray-300'
-                                                                }`}
+                                                                className={`w-full p-3 border rounded-lg flex items-center hover:border-indigo-500 ${paymentData.walletProvider === wallet.id
+                                                                    ? 'border-indigo-600 bg-indigo-50'
+                                                                    : 'border-gray-300'
+                                                                    }`}
                                                             >
                                                                 <span className="text-2xl mr-3">{wallet.logo}</span>
                                                                 <span>{wallet.name}</span>
@@ -646,70 +669,70 @@ const CustomCashfreeCheckout = () => {
     }
 
     // OTP Verification Screen
-    if (step === 'otp-verification') {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 flex items-center justify-center p-4">
-                <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
-                    <div className="text-center mb-8">
-                        <h1 className="text-2xl font-bold text-gray-800 mb-2">Verify OTP</h1>
-                        <p className="text-gray-600">Enter the OTP sent to your mobile</p>
-                        <p className="text-sm text-indigo-600 font-medium mt-2">
-                            +91 {customerDetails.customerPhone}
-                        </p>
-                    </div>
+    // if (step === 'otp-verification') {
+    //     return (
+    //         <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 flex items-center justify-center p-4">
+    //             <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
+    //                 <div className="text-center mb-8">
+    //                     <h1 className="text-2xl font-bold text-gray-800 mb-2">Verify OTP</h1>
+    //                     <p className="text-gray-600">Enter the OTP sent to your mobile</p>
+    //                     <p className="text-sm text-indigo-600 font-medium mt-2">
+    //                         +91 {customerDetails.customerPhone}
+    //                     </p>
+    //                 </div>
 
-                    {otpError && (
-                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-                            {otpError}
-                        </div>
-                    )}
+    //                 {otpError && (
+    //                     <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+    //                         {otpError}
+    //                     </div>
+    //                 )}
 
-                    <div className="flex justify-center gap-3 mb-6">
-                        {otpValues.map((value, index) => (
-                            <input
-                                key={index}
-                                id={`otp-${index}`}
-                                type="text"
-                                maxLength="1"
-                                value={value}
-                                onChange={(e) => handleOtpChange(index, e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Backspace' && !value && index > 0) {
-                                        document.getElementById(`otp-${index - 1}`)?.focus();
-                                    }
-                                }}
-                                className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-indigo-600 focus:outline-none"
-                            />
-                        ))}
-                    </div>
+    //                 <div className="flex justify-center gap-3 mb-6">
+    //                     {otpValues.map((value, index) => (
+    //                         <input
+    //                             key={index}
+    //                             id={`otp-${index}`}
+    //                             type="text"
+    //                             maxLength="1"
+    //                             value={value}
+    //                             onChange={(e) => handleOtpChange(index, e.target.value)}
+    //                             onKeyDown={(e) => {
+    //                                 if (e.key === 'Backspace' && !value && index > 0) {
+    //                                     document.getElementById(`otp-${index - 1}`)?.focus();
+    //                                 }
+    //                             }}
+    //                             className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-indigo-600 focus:outline-none"
+    //                         />
+    //                     ))}
+    //                 </div>
 
-                    <div className="space-y-3">
-                        <button
-                            onClick={handleOtpVerification}
-                            disabled={loading || otpValues.join('').length !== 6}
-                            className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50"
-                        >
-                            {loading ? 'Verifying...' : 'Verify & Pay'}
-                        </button>
+    //                 <div className="space-y-3">
+    //                     <button
+    //                         onClick={handleOtpVerification}
+    //                         disabled={loading || otpValues.join('').length !== 6}
+    //                         className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50"
+    //                     >
+    //                         {loading ? 'Verifying...' : 'Verify & Pay'}
+    //                     </button>
 
-                        <button
-                            onClick={handleResendOtp}
-                            className="w-full text-indigo-600 py-2 rounded-lg font-medium hover:bg-indigo-50"
-                        >
-                            Resend OTP
-                        </button>
+    //                     <button
+    //                         onClick={handleResendOtp}
+    //                         className="w-full text-indigo-600 py-2 rounded-lg font-medium hover:bg-indigo-50"
+    //                     >
+    //                         Resend OTP
+    //                     </button>
 
-                        <button
-                            onClick={() => setStep('checkout')}
-                            className="w-full text-gray-600 py-2 rounded-lg font-medium hover:bg-gray-100"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    //                     <button
+    //                         onClick={() => setStep('checkout')}
+    //                         className="w-full text-gray-600 py-2 rounded-lg font-medium hover:bg-gray-100"
+    //                     >
+    //                         Cancel
+    //                     </button>
+    //                 </div>
+    //             </div>
+    //         </div>
+    //     );
+    // }
 
     // Success state
     if (step === 'success') {
